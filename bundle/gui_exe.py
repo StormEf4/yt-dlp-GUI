@@ -69,7 +69,7 @@ def main():
     os.makedirs(bin_dir)
     for exe in (args.ffmpeg, args.deno):
         shutil.copy2(exe, bin_dir)
-    icon = os.path.join(STAGE, 'icon.ico')
+    icon = os.path.abspath(os.path.join(STAGE, 'icon.ico'))
     make_icon(icon)
 
     opts = [
