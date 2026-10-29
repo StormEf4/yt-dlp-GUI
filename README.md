@@ -18,6 +18,7 @@ yt-dlp is a feature-rich command-line audio/video downloader with support for [t
 <!-- MANPAGE: MOVE "USAGE AND OPTIONS" SECTION HERE -->
 
 <!-- MANPAGE: BEGIN EXCLUDED SECTION -->
+* [YOUTUBE TO AUDIO APP](#youtube-to-audio-app)
 * [INSTALLATION](#installation)
     * [Detailed instructions](https://github.com/yt-dlp/yt-dlp/wiki/Installation)
     * [Release Files](#release-files)
@@ -69,6 +70,26 @@ yt-dlp is a feature-rich command-line audio/video downloader with support for [t
     * [Developer Instructions](CONTRIBUTING.md#developer-instructions)
 * [WIKI](https://github.com/yt-dlp/yt-dlp/wiki)
     * [FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ)
+<!-- MANPAGE: BEGIN EXCLUDED SECTION -->
+# YOUTUBE TO AUDIO APP
+
+This repository includes **yt-dlp Audio**, a simple app that turns YouTube videos and playlists into audio files. Paste a link, press **Download**, and the song lands in your Music folder.
+
+* Formats: MP3, M4A, Opus, FLAC or WAV, with a choice of quality
+* Adds the video thumbnail as cover art and fills in the title, artist and date
+* Downloads whole playlists into their own folder
+* Shows live progress and lets you cancel, retry, or open the finished file in its folder
+* **YouTube sign-in**: if YouTube asks you to confirm you're not a bot, pick the browser you're logged in to YouTube with and try again
+* Light and dark themes, and it remembers your choices
+
+**Start it** by double-clicking `yt-dlp-gui.cmd` (Windows) or running `./yt-dlp-gui.sh` (macOS/Linux). You can also run `python3 -m yt_dlp_gui` from this folder, or `yt-dlp-gui` if you installed it with pip. It opens in your web browser and quits when you close the tab. To get its own window instead, run `pip install pywebview` first.
+
+**You need:**
+* [Python](https://www.python.org/downloads/) 3.11 or newer
+* [FFmpeg](https://ffmpeg.org/download.html), which converts downloads to audio
+* For YouTube: [Deno](https://deno.com) and the `yt-dlp-ejs` package. Run `pip install deno yt-dlp-ejs`. Also run `pip install mutagen` if you want cover art in Opus or FLAC files
+
+The app only listens on your own computer (`127.0.0.1`), so other devices on your network can't use it.
 <!-- MANPAGE: END EXCLUDED SECTION -->
 
 

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="api-token" content="{{TOKEN}}">
+  <meta name="color-scheme" content="dark light">
+  <title>yt-dlp Audio</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div>
+          <h1>yt-dlp <em>Audio</em></h1>
+          <p class="tagline">YouTube to audio, in one click</p>
+        </div>
+      </div>
+      <button class="icon-btn" id="theme-toggle" type="button" title="Switch light / dark theme" aria-label="Switch theme">
+        <svg class="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </header>
+
+    <div class="banner" id="ffmpeg-banner" hidden>
+      <strong>FFmpeg is missing.</strong>
+      It's needed to convert downloads into audio files. Install it from
+      <a href="https://ffmpeg.org/download.html" target="_blank" rel="noreferrer">ffmpeg.org</a>
+      (or your package manager), then restart this app.
+    </div>
+
+    <div class="banner soft" id="yt-banner" hidden>
+      <strong>YouTube downloads may fail.</strong>
+      yt-dlp needs <span id="yt-missing"></span> to download from YouTube.
+      Run <code id="yt-fix"></code> (or see <a href="https://github.com/yt-dlp/yt-dlp/wiki/EJS" target="_blank" rel="noreferrer">the yt-dlp guide</a>),
+      then restart this app.
+    </div>
+
+    <section class="card composer" aria-label="New download">
+      <form id="add-form" autocomplete="off">
+        <label class="sr-only" for="url">YouTube video or playlist link</label>
+        <div class="url-row">
+          <div class="url-field">
+            <svg class="url-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>
+            <textarea id="url" rows="1" placeholder="Paste a YouTube link…" spellcheck="false"></textarea>
+            <button type="button" class="paste-btn" id="paste-btn">Paste</button>
+          </div>
+          <button type="submit" class="go-btn" id="go-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M6.5 10.5 12 16l5.5-5.5M5 20h14"/></svg>
+            <span>Download</span>
+          </button>
+        </div>
+        <p class="hint" id="hint">Tip: paste several YouTube links at once, or drag a link from your browser onto this window.</p>
+      </form>
+
+      <div class="options">
+        <div class="opt">
+          <span class="opt-label">Format</span>
+          <div class="segmented" id="format-group" role="radiogroup" aria-label="Audio format"></div>
+        </div>
+
+        <div class="opt" id="quality-opt">
+          <span class="opt-label">Quality</span>
+          <div class="segmented" id="quality-group" role="radiogroup" aria-label="Audio quality">
+            <button type="button" role="radio" data-value="0">Best</button>
+            <button type="button" role="radio" data-value="320K">320</button>
+            <button type="button" role="radio" data-value="256K">256</button>
+            <button type="button" role="radio" data-value="192K">192</button>
+            <button type="button" role="radio" data-value="128K">128</button>
+          </div>
+          <span class="lossless-note" id="lossless-note" hidden>Lossless — always full quality</span>
+        </div>
+
+        <div class="opt">
+          <span class="opt-label">Save to</span>
+          <div class="folder">
+            <button type="button" class="folder-btn" id="folder-btn" title="Choose folder">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              <span id="folder-path">…</span>
+              <span class="folder-change">Change</span>
+            </button>
+            <button type="button" class="icon-btn small" id="open-folder" title="Open this folder" aria-label="Open folder">
+              <svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="opt">
+          <span class="opt-label">YouTube sign-in</span>
+          <div class="select-wrap" title="If YouTube asks you to confirm you're not a bot, use the YouTube login from one of your browsers">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            <select id="opt-browser" aria-label="Use YouTube login from browser">
+              <option value="">Not needed</option>
+            </select>
+            <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+
+        <div class="opt toggles">
+          <label class="toggle" title="Use the video thumbnail as album art">
+            <input type="checkbox" id="opt-thumbnail"><span class="switch"></span>Cover art
+          </label>
+          <label class="toggle" title="Write title, artist and date into the file">
+            <input type="checkbox" id="opt-metadata"><span class="switch"></span>Song info
+          </label>
+          <label class="toggle" title="If the link is (or belongs to) a YouTube playlist, download every song in it">
+            <input type="checkbox" id="opt-playlist"><span class="switch"></span>Whole playlist
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="downloads" aria-label="Downloads">
+      <div class="section-head">
+        <h2>Downloads <span class="count" id="count"></span></h2>
+        <button type="button" class="text-btn" id="clear-btn" hidden>Clear finished</button>
+      </div>
+      <ul class="job-list" id="job-list"></ul>
+      <div class="empty" id="empty">
+        <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <p>Nothing here yet</p>
+        <span>Your audio files will show up here as they download.</span>
+      </div>
+    </section>
+
+    <footer class="foot">Powered by <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noreferrer">yt-dlp</a> <span id="version"></span></footer>
+  </main>
+
+  <div class="drop-overlay" id="drop-overlay" aria-hidden="true"><div>Drop the link to download it</div></div>
+
+  <dialog class="modal" id="folder-dialog" aria-labelledby="folder-title">
+    <div class="modal-head">
+      <h3 id="folder-title">Choose a folder</h3>
+      <button type="button" class="icon-btn small" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="places" id="places"></div>
+    <div class="crumb">
+      <button type="button" class="icon-btn small" id="dir-up" title="Up one level" aria-label="Up one level">
+        <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+      <span id="dir-path"></span>
+    </div>
+    <ul class="dir-list" id="dir-list"></ul>
+    <div class="modal-foot">
+      <button type="button" class="text-btn" data-close>Cancel</button>
+      <button type="button" class="go-btn compact" id="dir-select">Use this folder</button>
+    </div>
+  </dialog>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <template id="job-template">
+    <li class="job">
+      <div class="thumb">
+        <img alt="" loading="lazy" referrerpolicy="no-referrer">
+        <span class="badge"></span>
+      </div>
+      <div class="job-body">
+        <div class="job-title"></div>
+        <div class="job-sub"></div>
+        <div class="bar"><div class="fill"></div></div>
+        <div class="job-status">
+          <span class="dot"></span><span class="stage"></span>
+          <span class="stats"></span>
+        </div>
+        <div class="job-error"></div>
+      </div>
+      <div class="job-actions">
+        <button type="button" class="icon-btn small act-reveal" title="Show in folder" aria-label="Show in folder">
+          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        </button>
+        <button type="button" class="icon-btn small act-retry" title="Try again" aria-label="Try again">
+          <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+        </button>
+        <button type="button" class="icon-btn small act-cancel" title="Cancel" aria-label="Cancel">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <button type="button" class="icon-btn small act-remove" title="Remove from list" aria-label="Remove from list">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </li>
+  </template>
+</body>
+</html>

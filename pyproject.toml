@@ -139,6 +139,7 @@ Funding = "https://github.com/yt-dlp/yt-dlp/blob/master/Maintainers.md#maintaine
 
 [project.scripts]
 yt-dlp = "yt_dlp:main"
+yt-dlp-gui = "yt_dlp_gui:main"
 
 [project.entry-points.pyinstaller40]
 hook-dirs = "yt_dlp.__pyinstaller:get_hook_dirs"
@@ -146,6 +147,7 @@ hook-dirs = "yt_dlp.__pyinstaller:get_hook_dirs"
 [tool.hatch.build.targets.sdist]
 include = [
     "/yt_dlp",
+    "/yt_dlp_gui",
     "/devscripts",
     "/test",
     "/.gitignore",  # included by default, needed for auto-excludes
@@ -164,7 +166,7 @@ artifacts = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["yt_dlp"]
+packages = ["yt_dlp", "yt_dlp_gui"]
 artifacts = [
     "/yt_dlp/extractor/lazy_extractors.py",
 ]
