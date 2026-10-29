@@ -39,6 +39,31 @@ SINGLE_OUTTMPL = '%(title)s.%(ext)s'
 PLAYLIST_OUTTMPL = os.path.join('%(playlist_title,playlist_id)s', '%(playlist_index)02d - %(title)s.%(ext)s')
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+_TIME_RE = re.compile(r'(?:(?:(\d+):)?(\d+):)?(\d+(?:[.,]\d+)?)')
+
+
+def parse_time(text):
+    """'90', '1:30', '1:02:03' or '1:30.5' -> seconds. Empty -> None. Raises ValueError if invalid"""
+    text = str(text or '').strip()
+    if not text:
+        return None
+    m = _TIME_RE.fullmatch(text)
+    if not m:
+        raise ValueError(text)
+    h, mins, sec = m.groups()
+    if (h is not None and int(mins) >= 60) or (mins is not None and float(sec.replace(',', '.')) >= 60):
+        raise ValueError(text)
+    return int(h or 0) * 3600 + int(mins or 0) * 60 + float(sec.replace(',', '.'))
+
+
+def format_time(seconds, sep=':'):
+    """Seconds -> '1:30' or '1:02:03' (with sep=None: '1m30s', '1h02m03s' for use in file names)"""
+    whole = int(seconds)
+    h, m, s = whole // 3600, whole % 3600 // 60, whole % 60
+    frac = f'{seconds - whole:.1f}'[1:] if seconds - whole >= 0.05 else ''
+    if sep is None:
+        return f'{h}h{m:02d}m{s:02d}{frac}s' if h else f'{m}m{s:02d}{frac}s'
+    return f'{h}:{m:02d}:{s:02d}{frac}' if h else f'{m}:{s:02d}{frac}'
 
 
 def ffmpeg_available():
@@ -96,6 +121,56 @@ def friendly_error(msg):
         if re.search(pattern, msg):
             return friendly
     return msg
+
+
+def _best_storyboard(info, duration):
+    """The sharpest storyboard (sprite sheets of evenly spaced frames) YouTube offers, for the trim timeline"""
+    boards = [
+        f for f in info.get('formats') or []
+        if f.get('format_note') == 'storyboard' and f.get('fragments') and f.get('rows') and f.get('columns')]
+    if not boards or not duration:
+        return None
+    sb = max(boards, key=lambda f: (f.get('width') or 0) * (f.get('height') or 0))
+    return {
+        'urls': [frag['url'] for frag in sb['fragments']],
+        'width': sb['width'],
+        'height': sb['height'],
+        'columns': sb['columns'],
+        'rows': sb['rows'],
+        'count': max(1, round((sb.get('fps') or 0) * duration)),
+    }
+
+
+def probe(url, browser=''):
+    """Look up a single video (without downloading it) for the trim panel"""
+    args = ['--ignore-config', '--no-playlist']
+    if browser:
+        args += ['--cookies-from-browser', browser]
+    errors = []
+    logger = type('_ProbeLogger', (), {
+        'debug': lambda self, msg: None, 'info': lambda self, msg: None,
+        'warning': lambda self, msg: None, 'error': lambda self, msg: errors.append(msg)})()
+    try:
+        with yt_dlp.YoutubeDL({**yt_dlp.parse_options(args).ydl_opts, 'quiet': True, 'logger': logger}) as ydl:
+            info = ydl.extract_info(url, download=False, process=False)
+    except Exception as e:
+        raise ValueError(friendly_error(errors[-1] if errors else e))
+    if not info:
+        raise ValueError(friendly_error(errors[-1]) if errors else 'Nothing found at this link')
+    if info.get('_type') in ('playlist', 'multi_video'):
+        raise ValueError('Trimming works on a single video. Paste the link of one video from the playlist.')
+    duration = info.get('duration')
+    if not duration or info.get('is_live'):
+        raise ValueError('This video can\'t be trimmed because its length is unknown (live streams can\'t be trimmed).')
+    return {
+        'id': info.get('id'),
+        'title': info.get('title'),
+        'uploader': info.get('uploader') or info.get('channel'),
+        'duration': duration,
+        'thumbnail': _best_thumbnail(info),
+        'embed': info.get('extractor_key') == 'Youtube' and info.get('playable_in_embed') is not False,
+        'storyboard': _best_storyboard(info, duration),
+    }
 
 
 class JobCancelled(DownloadCancelled):
@@ -185,11 +260,27 @@ class Job:
             'eta': self.eta,
             'total_bytes': self.total_bytes,
             'format': self.options['format'],
+            'section': self.section_label,
             'files': self.files,
             'error': self.errors[-1] if self.errors else None,
             'error_detail': self.error_detail,
             'error_count': len(self.errors),
         }
+
+    @property
+    def section_label(self):
+        start, end = self.options.get('start'), self.options.get('end')
+        if start is None and end is None:
+            return None
+        return f'{format_time(start or 0)} – {"end" if end is None else format_time(end)}'
+
+    def _outtmpl(self, tmpl):
+        start, end = self.options.get('start'), self.options.get('end')
+        if start is None and end is None:
+            return tmpl
+        # Name clips after their section so they don't overwrite a full download of the same video
+        suffix = f' ({format_time(start or 0, None)}-{"end" if end is None else format_time(end, None)})'
+        return tmpl.replace('.%(ext)s', f'{suffix}.%(ext)s')
 
     def _check_cancel(self):
         if self._cancel.is_set():
@@ -245,7 +336,11 @@ class Job:
 
     def _ydl_opts(self):
         o = self.options
-        args = ['--ignore-config', '-x', '--audio-format', o['format'], '-P', o['outdir'], '-o', SINGLE_OUTTMPL]
+        args = ['--ignore-config', '-x', '--audio-format', o['format'], '-P', o['outdir'],
+                '-o', self._outtmpl(SINGLE_OUTTMPL)]
+        if o.get('start') is not None or o.get('end') is not None:
+            # Only download (and convert) the chosen part of the video
+            args += ['--download-sections', f'*{o.get("start") or 0}-{"inf" if o.get("end") is None else o["end"]}']
         if not AUDIO_FORMATS[o['format']][1]:
             args += ['--audio-quality', o['quality']]
         if o['metadata']:
@@ -283,8 +378,12 @@ class Job:
                 self.thumbnail = _best_thumbnail(info)
                 self.duration = info.get('duration')
                 self.playlist_count = info.get('playlist_count')
+                start = self.options.get('start')
+                if not self.is_playlist and start and self.duration and start >= self.duration:
+                    raise yt_dlp.utils.DownloadError(
+                        f'The start time ({format_time(start)}) is after the end of the video ({format_time(self.duration)}).')
                 if self.is_playlist:
-                    ydl.params['outtmpl']['default'] = PLAYLIST_OUTTMPL
+                    ydl.params['outtmpl']['default'] = self._outtmpl(PLAYLIST_OUTTMPL)
                 self.status, self.stage = 'downloading', 'Starting download'
                 ydl.process_ie_result(info, download=True)
             self._check_cancel()

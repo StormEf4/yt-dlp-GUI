@@ -16,7 +16,7 @@ import urllib.parse
 from yt_dlp.dependencies import mutagen
 from yt_dlp.version import __version__ as ytdlp_version
 
-from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, BROWSERS, JobManager, ffmpeg_available, youtube_missing
+from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, BROWSERS, JobManager, format_time, parse_time, probe, ffmpeg_available, youtube_missing
 from .settings import Settings
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -186,6 +186,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             'POST /settings': self._settings,
             'GET /browse': lambda: self._json({**browse((query.get('path') or [''])[0]), 'places': places()}),
             'POST /reveal': self._reveal,
+            'GET /info': lambda: self._info((query.get('url') or [''])[0]),
             'POST /bye': self._bye,
         }.get(endpoint)
         if not handler:
@@ -200,8 +201,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send(200, html.encode(), 'text/html; charset=utf-8', {
             'Content-Security-Policy': (
                 "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; "
+                "script-src 'self' https://www.youtube.com https://s.ytimg.com; "
+                "frame-src https://www.youtube-nocookie.com https://www.youtube.com; "
                 "connect-src 'self'; frame-ancestors 'none'"),
-            'Referrer-Policy': 'no-referrer',
+            # YouTube's embedded player refuses to play without a referrer
+            'Referrer-Policy': 'strict-origin-when-cross-origin',
         })
 
     def _static(self, name):
@@ -230,6 +234,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.app.ffmpeg:
             return self._error('FFmpeg was not found. It is needed to convert downloads to audio')
         options = dict(self.app.settings.values)
+        for key, label in (('start', 'Start'), ('end', 'End')):
+            try:
+                options[key] = parse_time(body.get(key))
+            except ValueError:
+                return self._error(f'{label} time should look like 1:30 (minutes:seconds) or 1:02:30')
+        if options['end'] is not None and options['end'] <= (options['start'] or 0):
+            return self._error(f'The end time must be after the start time ({format_time(options["start"] or 0)})')
         if not os.path.isdir(options['outdir']):
             try:
                 os.makedirs(options['outdir'], exist_ok=True)
@@ -237,6 +248,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._error('The output folder does not exist. Choose another one')
         jobs = [self.app.jobs.add(url, options).to_dict() for url in urls]
         self._json({'jobs': jobs})
+
+    def _info(self, text):
+        urls = URL_RE.findall(text)
+        if len(urls) != 1:
+            return self._error('Paste one YouTube link to trim it' if not urls else 'Trim works on one link at a time')
+        try:
+            self._json(probe(urls[0], self.app.settings.values['browser']))
+        except ValueError as e:
+            self._error(str(e))
 
     def _clear(self):
         self.app.jobs.clear_finished()

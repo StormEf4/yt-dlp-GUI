@@ -13,7 +13,7 @@ import json
 import tempfile
 import threading
 
-from yt_dlp_gui.jobs import Job, friendly_error
+from yt_dlp_gui.jobs import Job, format_time, friendly_error, parse_time
 from yt_dlp_gui.server import make_server
 from yt_dlp_gui.settings import Settings
 
@@ -33,6 +33,26 @@ class TestFriendlyErrors(unittest.TestCase):
 
     def test_unknown_error_is_cleaned(self):
         self.assertEqual(friendly_error('\x1b[0;31mERROR:\x1b[0m something odd'), 'something odd')
+
+
+class TestTimes(unittest.TestCase):
+    def test_parse_time(self):
+        self.assertEqual(parse_time('90'), 90)
+        self.assertEqual(parse_time('1:30'), 90)
+        self.assertEqual(parse_time('1:02:03'), 3723)
+        self.assertEqual(parse_time('1:30.5'), 90.5)
+        self.assertIsNone(parse_time(''))
+        self.assertIsNone(parse_time(None))
+        for bad in ('1:75', 'abc', '1::2', '-3', '1:60:00'):
+            with self.assertRaises(ValueError):
+                parse_time(bad)
+
+    def test_format_time(self):
+        self.assertEqual(format_time(90), '1:30')
+        self.assertEqual(format_time(3723), '1:02:03')
+        self.assertEqual(format_time(90.5), '1:30.5')
+        self.assertEqual(format_time(90, None), '1m30s')
+        self.assertEqual(format_time(3723, None), '1h02m03s')
 
 
 class TestSettings(unittest.TestCase):
@@ -77,6 +97,15 @@ class TestJobOptions(unittest.TestCase):
     def test_wav_has_no_cover_art(self):
         keys = [pp['key'] for pp in self._opts(format='wav')['postprocessors']]
         self.assertNotIn('EmbedThumbnail', keys)
+
+    def test_clip(self):
+        job = Job('https://www.youtube.com/watch?v=jNQXAC9IVRw', {
+            'format': 'mp3', 'quality': '0', 'outdir': '.', 'metadata': True, 'thumbnail': True,
+            'playlist': False, 'browser': '', 'start': 90.0, 'end': None})
+        opts = job._ydl_opts()
+        self.assertEqual([tuple(r) for r in opts['download_ranges'].ranges], [(90, float('inf'))])
+        self.assertIn('(1m30s-end)', opts['outtmpl']['default'])
+        self.assertEqual(job.to_dict()['section'], '1:30 – end')
 
     def test_browser_login(self):
         self.assertEqual(self._opts(browser='firefox')['cookiesfrombrowser'][0], 'firefox')
@@ -123,6 +152,12 @@ class TestServer(unittest.TestCase):
         status, data = self._request('POST', '/api/jobs', {'url': 'hello'})
         self.assertEqual(status, 400)
         self.assertIn('link', json.loads(data)['error'])
+
+    def test_rejects_bad_clip_times(self):
+        url = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+        for times in ({'start': 'soon'}, {'start': '2:00', 'end': '1:00'}, {'end': '0'}):
+            status, _ = self._request('POST', '/api/jobs', {'url': url, **times})
+            self.assertEqual(status, 400, times)
 
     def test_reveal_only_known_paths(self):
         self.assertEqual(self._request('POST', '/api/reveal', {'path': '/etc'})[0], 403)

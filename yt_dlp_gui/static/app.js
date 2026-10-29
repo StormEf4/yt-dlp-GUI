@@ -207,12 +207,14 @@ async function submitUrl(text) {
   const btn = $('#go-btn');
   btn.disabled = true;
   try {
-    const data = await api('POST', '/jobs', { url: text });
+    const range = trimRange(text);
+    const data = await api('POST', '/jobs', { url: text, ...range });
+    if (trim.open) closeTrim();
     $('#url').value = '';
     autoGrow();
     setHint();
     const n = data.jobs.length;
-    toast(n > 1 ? `Added ${n} downloads` : 'Download started');
+    toast(n > 1 ? `Added ${n} downloads` : range ? 'Downloading your clip' : 'Download started');
     await refresh();
   } catch (e) {
     shake();
@@ -228,7 +230,7 @@ function initComposer() {
     e.preventDefault();
     submitUrl();
   });
-  ta.addEventListener('input', () => { autoGrow(); setHint(); });
+  ta.addEventListener('input', () => { autoGrow(); setHint(); trimLinkChanged(); });
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -241,7 +243,9 @@ function initComposer() {
       if (text.trim()) {
         ta.value = text.trim();
         autoGrow();
-        submitUrl();
+        // While trimming, pasting loads the new video instead of downloading straight away
+        if (trim.open) trimLinkChanged();
+        else submitUrl();
         return;
       }
       toast('Your clipboard is empty');
@@ -276,6 +280,12 @@ function initComposer() {
 // ---------- downloads list ----------
 
 function jobSubtitle(j) {
+  const clip = j.section ? `✂ Clip ${j.section}` : '';
+  const sub = jobSubtitleBase(j);
+  return [clip, sub].filter(Boolean).join(' · ');
+}
+
+function jobSubtitleBase(j) {
   if (j.is_playlist) {
     const parts = [];
     if (j.playlist_index && j.playlist_count) parts.push(`Song ${j.playlist_index} of ${j.playlist_count}`);
@@ -327,6 +337,8 @@ function createJobEl(j) {
 
 function updateJobEl(li, j) {
   li.dataset.status = j.status;
+  // Some downloads (eg: clips) don't report progress; show that work is happening anyway
+  li.classList.toggle('indeterminate', j.status === 'downloading' && !j.progress);
   li.classList.toggle('has-files', j.files.length > 0);
   const img = li.querySelector('img');
   if (j.thumbnail && img.getAttribute('src') !== j.thumbnail) {

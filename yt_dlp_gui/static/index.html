@@ -9,6 +9,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/app.js" defer></script>
+  <script src="/static/trim.js" defer></script>
 </head>
 <body>
   <div class="backdrop" aria-hidden="true"></div>
@@ -58,8 +59,75 @@
             <span>Download</span>
           </button>
         </div>
-        <p class="hint" id="hint">Tip: paste several YouTube links at once, or drag a link from your browser onto this window.</p>
+        <div class="hint-row">
+          <p class="hint" id="hint">Tip: paste several YouTube links at once, or drag a link from your browser onto this window.</p>
+          <button type="button" class="chip-btn" id="trim-btn" aria-expanded="false" aria-controls="trim">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>
+            <span>Trim</span>
+          </button>
+        </div>
       </form>
+
+      <section class="trim" id="trim" hidden aria-label="Trim">
+        <div class="trim-head">
+          <div class="trim-title">
+            <strong id="trim-title">Trim</strong>
+            <span id="trim-sub"></span>
+          </div>
+          <button type="button" class="icon-btn small" id="trim-close" title="Close trim" aria-label="Close trim">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="trim-stage" id="trim-stage">
+          <div class="trim-still" id="trim-still"></div>
+          <div class="trim-player-wrap"><div id="trim-player"></div></div>
+          <div class="trim-loading" id="trim-loading"><span class="spinner"></span><span>Loading video…</span></div>
+          <div class="trim-error" id="trim-error" hidden></div>
+          <span class="trim-note" id="trim-note" hidden>Preview isn't available for this video. Use the frames below to find your spot.</span>
+        </div>
+
+        <div class="trim-controls">
+          <button type="button" class="play-btn" id="trim-play" title="Play the clip (Space)" aria-label="Play">
+            <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>
+            <svg class="i-pause" viewBox="0 0 24 24"><path d="M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z"/></svg>
+          </button>
+          <div class="trim-timeline">
+            <div class="trim-track" id="trim-track" tabindex="0" role="slider" aria-label="Playhead" aria-valuemin="0">
+              <div class="filmstrip" id="filmstrip"></div>
+              <div class="shade shade-left" id="shade-left"></div>
+              <div class="shade shade-right" id="shade-right"></div>
+              <div class="sel" id="sel"></div>
+              <div class="handle handle-start" id="handle-start" tabindex="0" role="slider" aria-label="Clip start"><i></i></div>
+              <div class="handle handle-end" id="handle-end" tabindex="0" role="slider" aria-label="Clip end"><i></i></div>
+              <div class="playhead" id="playhead"><span></span></div>
+              <div class="tip" id="tip" hidden><div class="tip-frame" id="tip-frame"></div><span id="tip-time"></span></div>
+            </div>
+            <div class="trim-times">
+              <span id="trim-now">0:00</span>
+              <span id="trim-total">0:00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="trim-fields">
+          <label class="time-field">
+            <span>Start</span>
+            <input id="trim-start" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Clip start time">
+            <button type="button" class="mini-btn" id="set-start" title="Start the clip at the playhead">Set to playhead</button>
+          </label>
+          <div class="clip-len"><span>Clip length</span><strong id="clip-len">0:00</strong></div>
+          <label class="time-field end">
+            <span>End</span>
+            <input id="trim-end" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Clip end time">
+            <button type="button" class="mini-btn" id="set-end" title="End the clip at the playhead">Set to playhead</button>
+          </label>
+        </div>
+        <div class="trim-foot">
+          <span class="trim-help">Drag the handles to choose the part you want. Click or drag on the strip to move around.</span>
+          <button type="button" class="text-btn" id="trim-reset">Reset</button>
+        </div>
+      </section>
 
       <div class="options">
         <div class="opt">
