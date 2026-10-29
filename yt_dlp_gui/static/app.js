@@ -110,7 +110,20 @@ function renderSettings() {
     : 'Use the video thumbnail as album art';
   const browserSel = $('#opt-browser');
   if (browserSel.options.length === 1) {
-    for (const b of state.browsers) browserSel.add(new Option(`Use my ${b.label} login`, b.id));
+    const usable = state.browsers.filter((b) => !b.blocked);
+    const blocked = state.browsers.filter((b) => b.blocked);
+    for (const b of usable) browserSel.add(new Option(`Use my ${b.label} login`, b.id));
+    if (blocked.length) {
+      // Chrome, Edge & co. lock their logins on Windows; list them so people know why they can't be picked
+      const group = document.createElement('optgroup');
+      group.label = 'Locked by the browser on Windows';
+      for (const b of blocked) {
+        const opt = new Option(b.label, b.id);
+        opt.disabled = true;
+        group.append(opt);
+      }
+      browserSel.add(group);
+    }
   }
   browserSel.value = s.browser;
   $('#opt-metadata').checked = s.metadata;
@@ -330,6 +343,9 @@ function updateJobEl(li, j) {
   const err = j.status === 'error' || (j.status === 'done' && j.error_count) ? j.error || '' : '';
   li.querySelector('.job-error').textContent = err;
   li.querySelector('.job-error').title = err;
+  const detail = err && j.error_detail && j.error_detail !== err ? j.error_detail : '';
+  li.querySelector('.job-detail').hidden = !detail;
+  li.querySelector('.job-detail code').textContent = detail;
 }
 
 function renderJobs() {

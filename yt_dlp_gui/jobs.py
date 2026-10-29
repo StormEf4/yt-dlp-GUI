@@ -4,11 +4,12 @@ import itertools
 import os
 import queue
 import re
+import sys
 import threading
 import time
 
 import yt_dlp
-from yt_dlp.cookies import SUPPORTED_BROWSERS
+from yt_dlp.cookies import CHROMIUM_BASED_BROWSERS, SUPPORTED_BROWSERS
 from yt_dlp.dependencies import mutagen, yt_dlp_ejs
 from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
 from yt_dlp.utils import DownloadCancelled
@@ -26,7 +27,13 @@ QUALITIES = ('0', '320K', '256K', '192K', '128K')
 BROWSERS = {k: v for k, v in {
     'chrome': 'Chrome', 'firefox': 'Firefox', 'edge': 'Edge', 'brave': 'Brave', 'safari': 'Safari',
     'opera': 'Opera', 'vivaldi': 'Vivaldi', 'chromium': 'Chromium', 'whale': 'Whale',
-}.items() if k in SUPPORTED_BROWSERS}
+}.items() if k in SUPPORTED_BROWSERS and (k != 'safari' or sys.platform == 'darwin')}
+# On Windows, Chromium-based browsers encrypt their logins so that only the browser itself can read them
+# Ref: https://github.com/yt-dlp/yt-dlp/issues/10927
+BLOCKED_BROWSERS = CHROMIUM_BASED_BROWSERS & BROWSERS.keys() if os.name == 'nt' else set()
+SIGN_IN_HINT = (
+    'choose Firefox under "YouTube sign-in" (you must be logged in to YouTube there)' if os.name == 'nt'
+    else 'choose a browser you\'re logged in to YouTube with under "YouTube sign-in"')
 
 SINGLE_OUTTMPL = '%(title)s.%(ext)s'
 PLAYLIST_OUTTMPL = os.path.join('%(playlist_title,playlist_id)s', '%(playlist_index)02d - %(title)s.%(ext)s')
@@ -57,22 +64,27 @@ def youtube_missing():
 
 _FRIENDLY_ERRORS = (
     (r'confirm you.re not a bot|Sign in to confirm',
-     ('YouTube wants to check you\'re not a bot. Choose your browser under "YouTube sign-in" '
-      '(you must be logged in to YouTube there) and try again.')),
-    (r'(?i)cookies? (database|from browser)|could not (find|copy).*cookie|decrypt',
+     f'YouTube wants to check you\'re not a bot. To get past this, {SIGN_IN_HINT} and try again.'),
+    (r'(?i)decrypt with DPAPI|could not copy chrome cookie',
+     ('That browser keeps its YouTube login locked, so this app can\'t use it. Set "YouTube sign-in" to '
+      '"Not needed", or use Firefox.')),
+    (r'(?i)could not find \w+ cookies database|could not find firefox',
+     ('That browser doesn\'t seem to be installed or has never been opened. Set "YouTube sign-in" to '
+      '"Not needed", or pick a different browser.')),
+    (r'(?i)cookies? (database|from browser)|load cookies',
      ('Couldn\'t read your YouTube login from that browser. Close the browser completely and try again, '
-      'or pick a different browser under "YouTube sign-in".')),
+      'or set "YouTube sign-in" to "Not needed".')),
     (r'Private video', 'This video is private.'),
     (r'(?i)members.only|join this channel', 'This video is only for channel members.'),
     (r'(?i)confirm your age|age.restricted|inappropriate for some users',
-     'This video is age-restricted. Choose your browser under "YouTube sign-in" and try again.'),
+     f'This video is age-restricted. To download it, {SIGN_IN_HINT} and try again.'),
     (r'(?i)premieres in|live event will begin', 'This video hasn\'t premiered yet.'),
     (r'(?i)video unavailable|this video is unavailable|is not available|has been removed',
      'This video is unavailable. It may have been removed or blocked in your country.'),
     (r'Unsupported URL|is not a valid URL', 'That link doesn\'t point to a YouTube video or playlist.'),
     (r'HTTP Error 403',
-     ('YouTube blocked the download (error 403). Make sure Deno and yt-dlp-ejs are installed, '
-      'or choose your browser under "YouTube sign-in" and try again.')),
+     ('YouTube refused the download (error 403). Wait a minute and try again. If it keeps happening, '
+      f'{SIGN_IN_HINT}.')),
     (r'(?i)unable to download (webpage|api)|urlopen error|timed out|getaddrinfo|Network is unreachable',
      'Couldn\'t reach YouTube. Check your internet connection and try again.'),
 )
@@ -104,7 +116,7 @@ class _Logger:
         pass
 
     def error(self, msg):
-        self.job.errors.append(friendly_error(msg))
+        self.job.add_error(msg)
 
 
 def _best_thumbnail(info):
@@ -138,7 +150,12 @@ class Job:
         self.total_bytes = None
         self.files = []
         self.errors = []
+        self.error_detail = None
         self._cancel = threading.Event()
+
+    def add_error(self, msg):
+        self.error_detail = _ANSI_RE.sub('', str(msg)).removeprefix('ERROR: ').strip()
+        self.errors.append(friendly_error(msg))
 
     def cancel(self):
         self._cancel.set()
@@ -170,6 +187,7 @@ class Job:
             'format': self.options['format'],
             'files': self.files,
             'error': self.errors[-1] if self.errors else None,
+            'error_detail': self.error_detail,
             'error_count': len(self.errors),
         }
 
@@ -277,7 +295,7 @@ class Job:
                 self.status, self.stage = 'cancelled', 'Cancelled'
                 return
             if not self.errors:
-                self.errors.append(friendly_error(e))
+                self.add_error(e)
             self.status, self.stage = 'error', 'Failed'
         else:
             if self.files:

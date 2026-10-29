@@ -1,7 +1,7 @@
 import json
 import os
 
-from .jobs import AUDIO_FORMATS, BROWSERS, QUALITIES
+from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, BROWSERS, QUALITIES
 
 
 def _config_dir():
@@ -38,7 +38,7 @@ VALIDATORS = {
     'thumbnail': lambda v: isinstance(v, bool),
     'metadata': lambda v: isinstance(v, bool),
     'playlist': lambda v: isinstance(v, bool),
-    'browser': lambda v: v == '' or v in BROWSERS,
+    'browser': lambda v: v == '' or (v in BROWSERS and v not in BLOCKED_BROWSERS),
 }
 
 

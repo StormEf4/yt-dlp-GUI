@@ -16,7 +16,7 @@ import urllib.parse
 from yt_dlp.dependencies import mutagen
 from yt_dlp.version import __version__ as ytdlp_version
 
-from .jobs import AUDIO_FORMATS, BROWSERS, JobManager, ffmpeg_available, youtube_missing
+from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, BROWSERS, JobManager, ffmpeg_available, youtube_missing
 from .settings import Settings
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -92,7 +92,7 @@ class App:
             'settings': self.settings.values,
             'ffmpeg': self.ffmpeg,
             'youtube_missing': self.youtube_missing,
-            'browsers': [{'id': k, 'label': v} for k, v in BROWSERS.items()],
+            'browsers': [{'id': k, 'label': v, 'blocked': k in BLOCKED_BROWSERS} for k, v in BROWSERS.items()],
             'version': ytdlp_version,
             'formats': [
                 {'id': k, 'label': label, 'lossless': lossless, 'cover': cover}

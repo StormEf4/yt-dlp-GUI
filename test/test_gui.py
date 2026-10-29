@@ -26,6 +26,11 @@ class TestFriendlyErrors(unittest.TestCase):
                          'This video is private.')
         self.assertIn('unavailable', friendly_error('ERROR: [youtube] abc: Video unavailable'))
 
+    def test_locked_browser_login(self):
+        for msg in ('ERROR: Failed to decrypt with DPAPI. See  https://github.com/yt-dlp/yt-dlp/issues/10927  for more info',
+                    'ERROR: Could not copy Chrome cookie database. See  https://github.com/yt-dlp/yt-dlp/issues/7271  for more info'):
+            self.assertIn('keeps its YouTube login locked', friendly_error(msg))
+
     def test_unknown_error_is_cleaned(self):
         self.assertEqual(friendly_error('\x1b[0;31mERROR:\x1b[0m something odd'), 'something odd')
 
@@ -39,6 +44,18 @@ class TestSettings(unittest.TestCase):
             self.assertEqual(Settings(path).values['format'], 'flac')
             self.assertEqual(Settings(path).values['outdir'], tmp)
             self.assertEqual(Settings(path).values['quality'], '0')
+
+    def test_locked_browsers_are_rejected(self):
+        from yt_dlp_gui import settings as settings_module
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = Settings(os.path.join(tmp, 'settings.json'))
+            old = settings_module.BLOCKED_BROWSERS
+            settings_module.BLOCKED_BROWSERS = {'edge'}
+            try:
+                self.assertEqual(settings.update({'browser': 'edge'}), ['browser'])
+                self.assertEqual(settings.update({'browser': 'firefox'}), [])
+            finally:
+                settings_module.BLOCKED_BROWSERS = old
 
 
 class TestJobOptions(unittest.TestCase):
