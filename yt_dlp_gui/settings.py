@@ -1,7 +1,7 @@
 import json
 import os
 
-from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, BROWSERS, QUALITIES
+from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, BROWSERS, QUALITIES, VIDEO_FORMATS, VIDEO_QUALITIES
 
 
 def _config_dir():
@@ -12,9 +12,9 @@ def _config_dir():
     return os.path.join(base, 'yt-dlp-gui')
 
 
-def default_outdir():
+def default_outdir(kind='Music'):
     home = os.path.expanduser('~')
-    for name in ('Music', 'Downloads'):
+    for name in (kind, 'Downloads'):
         path = os.path.join(home, name)
         if os.path.isdir(path):
             return path
@@ -29,6 +29,12 @@ DEFAULTS = {
     'metadata': True,
     'playlist': False,
     'browser': '',
+    'video_outdir': None,
+    'video_format': 'mp4',
+    'video_quality': '1080',
+    'video_thumbnail': True,
+    'video_metadata': True,
+    'video_playlist': False,
 }
 
 VALIDATORS = {
@@ -39,13 +45,25 @@ VALIDATORS = {
     'metadata': lambda v: isinstance(v, bool),
     'playlist': lambda v: isinstance(v, bool),
     'browser': lambda v: v == '' or (v in BROWSERS and v not in BLOCKED_BROWSERS),
+    'video_outdir': lambda v: isinstance(v, str) and os.path.isdir(v),
+    'video_format': lambda v: v in VIDEO_FORMATS,
+    'video_quality': lambda v: v in VIDEO_QUALITIES,
+    'video_thumbnail': lambda v: isinstance(v, bool),
+    'video_metadata': lambda v: isinstance(v, bool),
+    'video_playlist': lambda v: isinstance(v, bool),
+}
+
+# The settings each tab uses when adding a download
+MODE_KEYS = {
+    'audio': {k: k for k in ('outdir', 'format', 'quality', 'thumbnail', 'metadata', 'playlist')},
+    'video': {k: f'video_{k}' for k in ('outdir', 'format', 'quality', 'thumbnail', 'metadata', 'playlist')},
 }
 
 
 class Settings:
     def __init__(self, path=None):
         self.path = path or os.path.join(_config_dir(), 'settings.json')
-        self.values = {**DEFAULTS, 'outdir': default_outdir()}
+        self.values = {**DEFAULTS, 'outdir': default_outdir(), 'video_outdir': default_outdir('Videos')}
         try:
             with open(self.path, encoding='utf-8') as f:
                 self.update(json.load(f), save=False)
@@ -65,6 +83,11 @@ class Settings:
         if save:
             self.save()
         return rejected
+
+    def for_mode(self, mode):
+        """Download options for the "audio" or "video" tab"""
+        return {'mode': mode, 'browser': self.values['browser'],
+                **{k: self.values[key] for k, key in MODE_KEYS[mode].items()}}
 
     def save(self):
         try:

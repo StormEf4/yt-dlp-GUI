@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Build "yt-dlp Audio" into a single double-clickable app with FFmpeg and Deno inside
+"""Build "YouTubevert" into a single double-clickable app with FFmpeg and Deno inside
 
 Usage: python bundle/gui_exe.py --ffmpeg PATH/TO/ffmpeg[.exe] [--deno PATH/TO/deno[.exe]] [extra PyInstaller options]
 Needs: pyinstaller, pywebview, pillow and yt-dlp's default dependencies (incl. yt-dlp-ejs, mutagen, deno)
@@ -17,7 +17,7 @@ import shutil
 
 from PyInstaller.__main__ import run as run_pyinstaller
 
-NAME = 'yt-dlp-Audio'
+NAME = 'YouTubevert'
 STAGE = os.path.join('build', 'gui')
 
 

@@ -18,7 +18,7 @@ yt-dlp is a feature-rich command-line audio/video downloader with support for [t
 <!-- MANPAGE: MOVE "USAGE AND OPTIONS" SECTION HERE -->
 
 <!-- MANPAGE: BEGIN EXCLUDED SECTION -->
-* [YOUTUBE TO AUDIO APP](#youtube-to-audio-app)
+* [YOUTUBEVERT](#youtubevert)
 * [INSTALLATION](#installation)
     * [Detailed instructions](https://github.com/yt-dlp/yt-dlp/wiki/Installation)
     * [Release Files](#release-files)
@@ -71,27 +71,28 @@ yt-dlp is a feature-rich command-line audio/video downloader with support for [t
 * [WIKI](https://github.com/yt-dlp/yt-dlp/wiki)
     * [FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ)
 <!-- MANPAGE: BEGIN EXCLUDED SECTION -->
-# YOUTUBE TO AUDIO APP
+# YOUTUBEVERT
 
-This repository includes **yt-dlp Audio**, a simple app that turns YouTube videos and playlists into audio files. Paste a link, press **Download**, and the song lands in your Music folder.
+This repository includes **YouTubevert by StormEf4**, a simple app that turns YouTube videos and playlists into audio or video files. Paste a link, press **Download**, and the file lands in your Music or Videos folder.
 
-* Formats: MP3, M4A, Opus, FLAC or WAV, with a choice of quality
-* Adds the video thumbnail as cover art and fills in the title, artist and date
+* **Audio tab:** MP3, M4A, Opus, FLAC or WAV, with a choice of quality. Adds the thumbnail as cover art and fills in the title, artist and date
+* **Video tab:** MP4 (plays everywhere), MKV or WebM, up to 4K or capped at the resolution you choose. Saves to its own folder
+* **Trim:** download just part of a video. Drag the handles on a filmstrip of the video (like the Windows Photos trimmer), preview the clip, or type exact times
 * Downloads whole playlists into their own folder
 * Shows live progress and lets you cancel, retry, or open the finished file in its folder
-* **YouTube sign-in**: if YouTube asks you to confirm you're not a bot, pick the browser you're logged in to YouTube with and try again
+* **YouTube sign-in**: if YouTube asks you to confirm you're not a bot, pick the browser you're logged in to YouTube with (on Windows, Firefox) and try again
 * Light and dark themes, and it remembers your choices
 
 ### Windows: just download and double-click
 
-1. Go to this repository's **Releases** page and download **`yt-dlp-Audio.exe`**
+1. Go to this repository's **Releases** page and download **`YouTubevert.exe`**
 2. Double-click it. That's it: FFmpeg and everything else YouTube needs are built in
 
-The first time, Windows may say *"Windows protected your PC"* because the app isn't code-signed. Click **More info**, then **Run anyway**. The app takes a few seconds to open, and your songs go to your **Music** folder (you can change this in the app).
+The first time, Windows may say *"Windows protected your PC"* because the app isn't code-signed. Click **More info**, then **Run anyway**. The app takes a few seconds to open.
 
 ### Building the .exe
 
-The `.exe` is built by the [Build yt-dlp Audio for Windows](.github/workflows/gui-exe.yml) workflow on every push that changes the app. To publish it for everyone, open the **Actions** tab, choose **Build yt-dlp Audio for Windows**, click **Run workflow**, tick **Publish the .exe as a GitHub release**, and run it. The build script is `bundle/gui_exe.py`.
+The `.exe` is built by the [Build YouTubevert for Windows](.github/workflows/gui-exe.yml) workflow on every push that changes the app. To publish it for everyone, open the **Actions** tab, choose **Build YouTubevert for Windows**, click **Run workflow**, tick **Publish the .exe as a GitHub release**, and run it. The build script is `bundle/gui_exe.py`.
 
 ### Running from source (macOS, Linux, developers)
 

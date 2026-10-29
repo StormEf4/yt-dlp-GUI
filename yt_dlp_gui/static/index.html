@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="api-token" content="{{TOKEN}}">
   <meta name="color-scheme" content="dark light">
-  <title>yt-dlp Audio</title>
+  <title>YouTubevert by StormEf4</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/app.js" defer></script>
@@ -21,8 +21,8 @@
           <span></span><span></span><span></span><span></span>
         </div>
         <div>
-          <h1>yt-dlp <em>Audio</em></h1>
-          <p class="tagline">YouTube to audio, in one click</p>
+          <h1>YouTube<em>vert</em> <span class="by">by StormEf4</span></h1>
+          <p class="tagline">YouTube to audio &amp; video, in one click</p>
         </div>
       </div>
       <button class="icon-btn" id="theme-toggle" type="button" title="Switch light / dark theme" aria-label="Switch theme">
@@ -44,6 +44,17 @@
       Run <code id="yt-fix"></code> (or see <a href="https://github.com/yt-dlp/yt-dlp/wiki/EJS" target="_blank" rel="noreferrer">the yt-dlp guide</a>),
       then restart this app.
     </div>
+
+    <nav class="tabs" role="tablist" aria-label="What to download">
+      <button type="button" class="tab" role="tab" id="tab-audio" data-mode="audio" aria-selected="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
+        <span>Audio</span><span class="tab-count" data-count="audio"></span>
+      </button>
+      <button type="button" class="tab" role="tab" id="tab-video" data-mode="video" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="14" height="14" rx="2.5"/><path d="m16.5 10 5-3v10l-5-3z"/></svg>
+        <span>Video</span><span class="tab-count" data-count="video"></span>
+      </button>
+    </nav>
 
     <section class="card composer" aria-label="New download">
       <form id="add-form" autocomplete="off">
@@ -129,33 +140,33 @@
         </div>
       </section>
 
-      <div class="options">
+      <div class="options" data-mode="audio">
         <div class="opt">
           <span class="opt-label">Format</span>
-          <div class="segmented" id="format-group" role="radiogroup" aria-label="Audio format"></div>
+          <div class="segmented" data-key="format" role="radiogroup" aria-label="Audio format"></div>
         </div>
 
-        <div class="opt" id="quality-opt">
+        <div class="opt">
           <span class="opt-label">Quality</span>
-          <div class="segmented" id="quality-group" role="radiogroup" aria-label="Audio quality">
+          <div class="segmented" data-key="quality" role="radiogroup" aria-label="Audio quality">
             <button type="button" role="radio" data-value="0">Best</button>
             <button type="button" role="radio" data-value="320K">320</button>
             <button type="button" role="radio" data-value="256K">256</button>
             <button type="button" role="radio" data-value="192K">192</button>
             <button type="button" role="radio" data-value="128K">128</button>
           </div>
-          <span class="lossless-note" id="lossless-note" hidden>Lossless — always full quality</span>
+          <span class="lossless-note" hidden>Lossless — always full quality</span>
         </div>
 
         <div class="opt">
           <span class="opt-label">Save to</span>
           <div class="folder">
-            <button type="button" class="folder-btn" id="folder-btn" title="Choose folder">
+            <button type="button" class="folder-btn" data-key="outdir" title="Choose folder">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-              <span id="folder-path">…</span>
+              <span class="folder-path">…</span>
               <span class="folder-change">Change</span>
             </button>
-            <button type="button" class="icon-btn small" id="open-folder" title="Open this folder" aria-label="Open folder">
+            <button type="button" class="icon-btn small open-folder" data-key="outdir" title="Open this folder" aria-label="Open folder">
               <svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>
             </button>
           </div>
@@ -165,7 +176,7 @@
           <span class="opt-label">YouTube sign-in</span>
           <div class="select-wrap" title="If YouTube asks you to confirm you're not a bot, use the YouTube login from one of your browsers">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-            <select id="opt-browser" aria-label="Use YouTube login from browser">
+            <select class="browser-select" data-key="browser" aria-label="Use YouTube login from browser">
               <option value="">Not needed</option>
             </select>
             <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
@@ -174,13 +185,71 @@
 
         <div class="opt toggles">
           <label class="toggle" title="Use the video thumbnail as album art">
-            <input type="checkbox" id="opt-thumbnail"><span class="switch"></span>Cover art
+            <input type="checkbox" data-key="thumbnail"><span class="switch"></span>Cover art
           </label>
           <label class="toggle" title="Write title, artist and date into the file">
-            <input type="checkbox" id="opt-metadata"><span class="switch"></span>Song info
+            <input type="checkbox" data-key="metadata"><span class="switch"></span>Song info
           </label>
           <label class="toggle" title="If the link is (or belongs to) a YouTube playlist, download every song in it">
-            <input type="checkbox" id="opt-playlist"><span class="switch"></span>Whole playlist
+            <input type="checkbox" data-key="playlist"><span class="switch"></span>Whole playlist
+          </label>
+        </div>
+      </div>
+
+      <div class="options" data-mode="video" hidden>
+        <div class="opt">
+          <span class="opt-label">Format</span>
+          <div class="segmented" data-key="video_format" role="radiogroup" aria-label="Video format"></div>
+          <span class="opt-note" id="video-format-note"></span>
+        </div>
+
+        <div class="opt">
+          <span class="opt-label">Max resolution</span>
+          <div class="segmented" data-key="video_quality" role="radiogroup" aria-label="Maximum video resolution">
+            <button type="button" role="radio" data-value="best" title="The highest resolution available">Best</button>
+            <button type="button" role="radio" data-value="2160" title="Up to 4K (2160p)">4K</button>
+            <button type="button" role="radio" data-value="1440" title="Up to 1440p">1440</button>
+            <button type="button" role="radio" data-value="1080" title="Up to Full HD (1080p)">1080</button>
+            <button type="button" role="radio" data-value="720" title="Up to HD (720p)">720</button>
+            <button type="button" role="radio" data-value="480" title="Up to 480p — smallest files">480</button>
+          </div>
+          <span class="opt-note">If a video isn't available that sharp, you get the best it has.</span>
+        </div>
+
+        <div class="opt">
+          <span class="opt-label">Save to</span>
+          <div class="folder">
+            <button type="button" class="folder-btn" data-key="video_outdir" title="Choose folder">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              <span class="folder-path">…</span>
+              <span class="folder-change">Change</span>
+            </button>
+            <button type="button" class="icon-btn small open-folder" data-key="video_outdir" title="Open this folder" aria-label="Open folder">
+              <svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="opt">
+          <span class="opt-label">YouTube sign-in</span>
+          <div class="select-wrap" title="If YouTube asks you to confirm you're not a bot, use the YouTube login from one of your browsers">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            <select class="browser-select" data-key="browser" aria-label="Use YouTube login from browser">
+              <option value="">Not needed</option>
+            </select>
+            <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+
+        <div class="opt toggles">
+          <label class="toggle" title="Embed the video thumbnail as the cover image">
+            <input type="checkbox" data-key="video_thumbnail"><span class="switch"></span>Thumbnail
+          </label>
+          <label class="toggle" title="Write the title, channel, date and chapters into the file">
+            <input type="checkbox" data-key="video_metadata"><span class="switch"></span>Video info
+          </label>
+          <label class="toggle" title="If the link is (or belongs to) a YouTube playlist, download every video in it">
+            <input type="checkbox" data-key="video_playlist"><span class="switch"></span>Whole playlist
           </label>
         </div>
       </div>
@@ -195,7 +264,7 @@
       <div class="empty" id="empty">
         <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <p>Nothing here yet</p>
-        <span>Your audio files will show up here as they download.</span>
+        <span id="empty-text">Your audio files will show up here as they download.</span>
       </div>
     </section>
 

@@ -23,6 +23,13 @@ AUDIO_FORMATS = {
     'wav': ('WAV', True, False),
 }
 QUALITIES = ('0', '320K', '256K', '192K', '128K')
+VIDEO_FORMATS = {
+    # id: (label, description, thumbnail can be embedded, extra format sorting)
+    'mp4': ('MP4', 'Plays everywhere', True, 'vcodec:h264,acodec:aac,ext:mp4:m4a'),
+    'mkv': ('MKV', 'Best quality, any codec', True, ''),
+    'webm': ('WebM', 'Open format (VP9/AV1 + Opus)', False, 'vcodec:vp9,acodec:opus,ext:webm:webm'),
+}
+VIDEO_QUALITIES = ('best', '2160', '1440', '1080', '720', '480')
 # Browsers whose YouTube login can be borrowed to get past "confirm you're not a bot"
 BROWSERS = {k: v for k, v in {
     'chrome': 'Chrome', 'firefox': 'Firefox', 'edge': 'Edge', 'brave': 'Brave', 'safari': 'Safari',
@@ -229,6 +236,8 @@ class Job:
         self._cancel = threading.Event()
 
     def add_error(self, msg):
+        if not str(msg).strip():
+            return
         self.error_detail = _ANSI_RE.sub('', str(msg)).removeprefix('ERROR: ').strip()
         self.errors.append(friendly_error(msg))
 
@@ -259,8 +268,12 @@ class Job:
             'speed': self.speed,
             'eta': self.eta,
             'total_bytes': self.total_bytes,
+            'mode': self.mode,
             'format': self.options['format'],
+            'quality': self.options['quality'],
             'section': self.section_label,
+            'start': self.options.get('start'),
+            'end': self.options.get('end'),
             'files': self.files,
             'error': self.errors[-1] if self.errors else None,
             'error_detail': self.error_detail,
@@ -282,6 +295,10 @@ class Job:
         suffix = f' ({format_time(start or 0, None)}-{"end" if end is None else format_time(end, None)})'
         return tmpl.replace('.%(ext)s', f'{suffix}.%(ext)s')
 
+    @property
+    def mode(self):
+        return self.options.get('mode') or 'audio'
+
     def _check_cancel(self):
         if self._cancel.is_set():
             raise JobCancelled
@@ -302,6 +319,10 @@ class Job:
     def _progress_hook(self, d):
         self._check_cancel()
         self._update_item(d.get('info_dict') or {})
+        info = d.get('info_dict') or {}
+        # Videos are usually downloaded as separate video and audio streams, then combined
+        parts = [f.get('format_id') for f in info.get('requested_formats') or []] or [info.get('format_id')]
+        part = parts.index(info.get('format_id')) if info.get('format_id') in parts else 0
         if d['status'] == 'downloading':
             total = d.get('total_bytes') or d.get('total_bytes_estimate')
             if total:
@@ -311,10 +332,10 @@ class Job:
             else:
                 frac = 0
             self.status, self.stage = 'downloading', 'Downloading'
-            self.progress = self._overall(min(frac, 1.0) * 0.9)
+            self.progress = self._overall((part + min(frac, 1.0)) / len(parts) * 0.9)
             self.speed, self.eta, self.total_bytes = d.get('speed'), d.get('eta'), total
         elif d['status'] == 'finished':
-            self.progress = self._overall(0.9)
+            self.progress = self._overall((part + 1) / len(parts) * 0.9)
             self.speed = self.eta = None
 
     def _postprocessor_hook(self, d):
@@ -322,10 +343,13 @@ class Job:
         if d['status'] != 'started':
             return
         self._update_item(d.get('info_dict') or {})
+        label = (AUDIO_FORMATS if self.mode == 'audio' else VIDEO_FORMATS)[self.options['format']][0]
         stage = {
-            'ExtractAudio': f'Converting to {AUDIO_FORMATS[self.options["format"]][0]}',
-            'Metadata': 'Adding tags',
-            'EmbedThumbnail': 'Adding cover art',
+            'ExtractAudio': f'Converting to {label}',
+            'Merger': 'Combining video and audio',
+            'VideoRemuxer': f'Converting to {label}',
+            'Metadata': 'Adding video info' if self.mode == 'video' else 'Adding tags',
+            'EmbedThumbnail': 'Adding thumbnail' if self.mode == 'video' else 'Adding cover art',
         }.get(d.get('postprocessor'))
         if stage:
             self.status, self.stage = 'converting', stage
@@ -334,19 +358,35 @@ class Job:
     def _post_hook(self, filename):
         self.files.append(os.path.abspath(filename))
 
+    def _format_args(self):
+        o = self.options
+        if self.mode == 'video':
+            # Highest resolution up to the chosen limit; at that resolution prefer the container's usual codecs
+            res = 'res' if o['quality'] == 'best' else f'res:{o["quality"]}'
+            _, _, cover, sort = VIDEO_FORMATS[o['format']]
+            merge = 'webm/mkv' if o['format'] == 'webm' else o['format']
+            args = ['-f', 'bv*+ba/b', '-S', ','.join(filter(None, (res, sort))), '--merge-output-format', merge]
+            if o['format'] != 'webm':
+                args += ['--remux-video', o['format']]
+        else:
+            _, lossless, cover = AUDIO_FORMATS[o['format']]
+            args = ['-x', '--audio-format', o['format']]
+            if not lossless:
+                args += ['--audio-quality', o['quality']]
+        if o['thumbnail'] and cover:
+            args.append('--embed-thumbnail')
+        return args
+
     def _ydl_opts(self):
         o = self.options
-        args = ['--ignore-config', '-x', '--audio-format', o['format'], '-P', o['outdir'],
-                '-o', self._outtmpl(SINGLE_OUTTMPL)]
+        args = ['--ignore-config', *self._format_args(), '-P', o['outdir'], '-o', self._outtmpl(SINGLE_OUTTMPL)]
         if o.get('start') is not None or o.get('end') is not None:
             # Only download (and convert) the chosen part of the video
             args += ['--download-sections', f'*{o.get("start") or 0}-{"inf" if o.get("end") is None else o["end"]}']
-        if not AUDIO_FORMATS[o['format']][1]:
-            args += ['--audio-quality', o['quality']]
+            if self.mode == 'video':
+                args.append('--force-keyframes-at-cuts')  # cut exactly where asked, not at the nearest keyframe
         if o['metadata']:
             args.append('--embed-metadata')
-        if o['thumbnail'] and AUDIO_FORMATS[o['format']][2]:
-            args.append('--embed-thumbnail')
         args.append('--yes-playlist' if o['playlist'] else '--no-playlist')
         if o['browser']:
             args += ['--cookies-from-browser', o['browser']]
@@ -439,9 +479,9 @@ class JobManager:
         with self._lock:
             return [job.to_dict() for job in self.jobs.values()]
 
-    def clear_finished(self):
+    def clear_finished(self, mode=None):
         with self._lock:
-            self.jobs = {k: v for k, v in self.jobs.items() if not v.finished}
+            self.jobs = {k: v for k, v in self.jobs.items() if not v.finished or (mode and v.mode != mode)}
 
     def remove(self, job_id):
         with self._lock:

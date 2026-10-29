@@ -3,7 +3,8 @@
 const TOKEN = document.querySelector('meta[name="api-token"]').content;
 const $ = (sel) => document.querySelector(sel);
 
-const state = { settings: null, formats: [], jobs: [], ffmpeg: true, busy: false };
+const state = { settings: null, formats: [], video_formats: [], jobs: [], ffmpeg: true, busy: false, mode: 'audio' };
+const APP_NAME = 'YouTubevert by StormEf4';
 const jobEls = new Map();
 let pollTimer = null;
 
@@ -76,58 +77,81 @@ function initTheme() {
 
 // ---------- settings ----------
 
+function fillSegmented(group, items) {
+  if (group.children.length) return;
+  for (const item of items) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.dataset.value = item.value;
+    b.textContent = item.label;
+    b.title = item.title;
+    group.append(b);
+  }
+}
+
+function fillBrowsers(select) {
+  if (select.options.length > 1) return;
+  const usable = state.browsers.filter((b) => !b.blocked);
+  const blocked = state.browsers.filter((b) => b.blocked);
+  for (const b of usable) select.add(new Option(`Use my ${b.label} login`, b.id));
+  if (blocked.length) {
+    // Chrome, Edge & co. lock their logins on Windows; list them so people know why they can't be picked
+    const group = document.createElement('optgroup');
+    group.label = 'Locked by the browser on Windows';
+    for (const b of blocked) {
+      const opt = new Option(b.label, b.id);
+      opt.disabled = true;
+      group.append(opt);
+    }
+    select.add(group);
+  }
+}
+
+function setCoverToggle(input, on, supported, title) {
+  input.checked = on && supported;
+  input.disabled = !supported;
+  const label = input.closest('.toggle');
+  label.classList.toggle('disabled', !supported);
+  label.title = title;
+}
+
+// Every control carries the name of the setting it changes in `data-key`
 function renderSettings() {
   const s = state.settings;
+  fillSegmented($('.segmented[data-key="format"]'), state.formats.map((f) => (
+    { value: f.id, label: f.label, title: f.lossless ? `${f.label} — lossless` : f.label })));
+  fillSegmented($('.segmented[data-key="video_format"]'), state.video_formats.map((f) => (
+    { value: f.id, label: f.label, title: `${f.label} — ${f.description}` })));
+
+  for (const group of document.querySelectorAll('.segmented[data-key]')) {
+    for (const b of group.children) b.setAttribute('aria-checked', String(b.dataset.value === s[group.dataset.key]));
+  }
+  for (const btn of document.querySelectorAll('.folder-btn[data-key]')) {
+    const path = s[btn.dataset.key];
+    btn.querySelector('.folder-path').textContent = ltr(path);
+    btn.title = `${path}\nClick to choose another folder`;
+  }
+  for (const input of document.querySelectorAll('input[type="checkbox"][data-key]')) input.checked = !!s[input.dataset.key];
+  for (const select of document.querySelectorAll('.browser-select')) {
+    fillBrowsers(select);
+    select.value = s.browser;
+  }
+
+  // Audio: lossless formats have no quality choice, and not every format can hold cover art
   const fmt = state.formats.find((f) => f.id === s.format) || {};
+  const audio = $('.options[data-mode="audio"]');
+  audio.querySelector('.segmented[data-key="quality"]').hidden = !!fmt.lossless;
+  audio.querySelector('.lossless-note').hidden = !fmt.lossless;
+  setCoverToggle(audio.querySelector('[data-key="thumbnail"]'), s.thumbnail, fmt.cover !== false,
+    fmt.cover === false
+      ? (fmt.id === 'wav' ? 'WAV files can\'t hold cover art' : `Cover art for ${fmt.label} needs the "mutagen" Python package`)
+      : 'Use the video thumbnail as album art');
 
-  const fg = $('#format-group');
-  if (!fg.children.length) {
-    for (const f of state.formats) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.setAttribute('role', 'radio');
-      b.dataset.value = f.id;
-      b.textContent = f.label;
-      b.title = f.lossless ? `${f.label} — lossless` : f.label;
-      fg.append(b);
-    }
-  }
-  for (const b of fg.children) b.setAttribute('aria-checked', String(b.dataset.value === s.format));
-  for (const b of $('#quality-group').children) b.setAttribute('aria-checked', String(b.dataset.value === s.quality));
-
-  $('#quality-group').hidden = !!fmt.lossless;
-  $('#lossless-note').hidden = !fmt.lossless;
-
-  $('#folder-path').textContent = ltr(s.outdir);
-  $('#folder-path').title = s.outdir;
-
-  $('#opt-thumbnail').checked = s.thumbnail && fmt.cover !== false;
-  $('#opt-thumbnail').disabled = fmt.cover === false;
-  const coverLabel = $('#opt-thumbnail').closest('.toggle');
-  coverLabel.classList.toggle('disabled', fmt.cover === false);
-  coverLabel.title = fmt.cover === false
-    ? (fmt.id === 'wav' ? 'WAV files can\'t hold cover art' : `Cover art for ${fmt.label} needs the "mutagen" Python package`)
-    : 'Use the video thumbnail as album art';
-  const browserSel = $('#opt-browser');
-  if (browserSel.options.length === 1) {
-    const usable = state.browsers.filter((b) => !b.blocked);
-    const blocked = state.browsers.filter((b) => b.blocked);
-    for (const b of usable) browserSel.add(new Option(`Use my ${b.label} login`, b.id));
-    if (blocked.length) {
-      // Chrome, Edge & co. lock their logins on Windows; list them so people know why they can't be picked
-      const group = document.createElement('optgroup');
-      group.label = 'Locked by the browser on Windows';
-      for (const b of blocked) {
-        const opt = new Option(b.label, b.id);
-        opt.disabled = true;
-        group.append(opt);
-      }
-      browserSel.add(group);
-    }
-  }
-  browserSel.value = s.browser;
-  $('#opt-metadata').checked = s.metadata;
-  $('#opt-playlist').checked = s.playlist;
+  const vfmt = state.video_formats.find((f) => f.id === s.video_format) || {};
+  $('#video-format-note').textContent = vfmt.description || '';
+  setCoverToggle($('[data-key="video_thumbnail"]'), s.video_thumbnail, vfmt.cover !== false,
+    vfmt.cover === false ? `${vfmt.label} files can't hold a thumbnail` : 'Embed the video thumbnail as the cover image');
 }
 
 async function saveSettings(changes) {
@@ -144,16 +168,14 @@ async function saveSettings(changes) {
 }
 
 function initSettings() {
-  $('#format-group').addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (b) saveSettings({ format: b.dataset.value });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.segmented[data-key] > button');
+    if (b) saveSettings({ [b.parentElement.dataset.key]: b.dataset.value });
+    const open = e.target.closest('.open-folder');
+    if (open) reveal(state.settings[open.dataset.key]);
   });
-  $('#quality-group').addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (b) saveSettings({ quality: b.dataset.value });
-  });
-  for (const key of ['thumbnail', 'metadata', 'playlist']) {
-    $(`#opt-${key}`).addEventListener('change', (e) => saveSettings({ [key]: e.target.checked }));
+  for (const input of document.querySelectorAll('input[type="checkbox"][data-key]')) {
+    input.addEventListener('change', () => saveSettings({ [input.dataset.key]: input.checked }));
   }
   // Arrow keys move between options in a radio group
   for (const group of document.querySelectorAll('.segmented')) {
@@ -168,11 +190,46 @@ function initSettings() {
       e.preventDefault();
     });
   }
-  $('#opt-browser').addEventListener('change', (e) => {
-    saveSettings({ browser: e.target.value });
-    if (e.target.value) toast('Make sure you\'re logged in to YouTube in that browser');
-  });
-  $('#open-folder').addEventListener('click', () => reveal(state.settings.outdir));
+  for (const select of document.querySelectorAll('.browser-select')) {
+    select.addEventListener('change', () => {
+      saveSettings({ browser: select.value });
+      if (select.value) toast('Make sure you\'re logged in to YouTube in that browser');
+    });
+  }
+}
+
+// ---------- tabs ----------
+
+function setMode(mode) {
+  state.mode = mode;
+  document.body.dataset.mode = mode;
+  for (const tab of document.querySelectorAll('.tab')) {
+    const selected = tab.dataset.mode === mode;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of document.querySelectorAll('.options[data-mode]')) panel.hidden = panel.dataset.mode !== mode;
+  $('#empty-text').textContent = mode === 'video'
+    ? 'Your videos will show up here as they download.'
+    : 'Your audio files will show up here as they download.';
+  try { localStorage.setItem('mode', mode); } catch { /* storage unavailable */ }
+  renderJobs();
+}
+
+function initTabs() {
+  let saved = 'audio';
+  try { saved = localStorage.getItem('mode') || 'audio'; } catch { /* storage unavailable */ }
+  const tabs = [...document.querySelectorAll('.tab')];
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => setMode(tab.dataset.mode));
+    tab.addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      const next = tabs[(tabs.indexOf(tab) + 1) % tabs.length];
+      next.focus();
+      setMode(next.dataset.mode);
+    });
+  }
+  setMode(saved === 'video' ? 'video' : 'audio');
 }
 
 // ---------- adding downloads ----------
@@ -196,7 +253,7 @@ function shake() {
   field.classList.add('shake');
 }
 
-async function submitUrl(text) {
+async function submitUrl(text, mode = state.mode) {
   text = (text ?? $('#url').value).trim();
   if (!text) {
     shake();
@@ -208,13 +265,14 @@ async function submitUrl(text) {
   btn.disabled = true;
   try {
     const range = trimRange(text);
-    const data = await api('POST', '/jobs', { url: text, ...range });
+    const data = await api('POST', '/jobs', { url: text, mode, ...range });
+    if (mode !== state.mode) setMode(mode);
     if (trim.open) closeTrim();
     $('#url').value = '';
     autoGrow();
     setHint();
     const n = data.jobs.length;
-    toast(n > 1 ? `Added ${n} downloads` : range ? 'Downloading your clip' : 'Download started');
+    toast(n > 1 ? `Added ${n} downloads` : range ? 'Downloading your clip' : mode === 'video' ? 'Video download started' : 'Download started');
     await refresh();
   } catch (e) {
     shake();
@@ -323,10 +381,15 @@ function createJobEl(j) {
     li.style.transform = 'scale(.97)';
     api('DELETE', `/jobs/${j.id}`).then(refresh).catch((e) => toast(e.message, 'error'));
   });
-  li.querySelector('.act-retry').addEventListener('click', () => {
-    const job = state.jobs.find((x) => x.id === j.id);
-    api('DELETE', `/jobs/${j.id}`).catch(() => {});
-    submitUrl(job ? job.url : j.url);
+  li.querySelector('.act-retry').addEventListener('click', async () => {
+    const job = state.jobs.find((x) => x.id === j.id) || j;
+    try {
+      await api('POST', '/jobs', { url: job.url, mode: job.mode, start: job.start, end: job.end });
+      await api('DELETE', `/jobs/${j.id}`);
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+    refresh();
   });
   li.querySelector('.act-reveal').addEventListener('click', () => {
     const job = state.jobs.find((x) => x.id === j.id);
@@ -345,7 +408,9 @@ function updateJobEl(li, j) {
     img.classList.remove('loaded');
     img.src = j.thumbnail;
   }
-  li.querySelector('.badge').textContent = j.format;
+  const res = { best: '', 2160: '4K' }[j.quality] ?? `${j.quality}p`;
+  const format = j.format.toUpperCase();
+  li.querySelector('.badge').textContent = j.mode === 'video' ? [format, res].filter(Boolean).join(' · ') : format;
   li.querySelector('.job-title').textContent = j.title || j.url;
   li.querySelector('.job-title').title = j.title || j.url;
   li.querySelector('.job-sub').textContent = jobSubtitle(j);
@@ -362,7 +427,8 @@ function updateJobEl(li, j) {
 
 function renderJobs() {
   const list = $('#job-list');
-  const jobs = [...state.jobs].sort((a, b) => b.id - a.id);
+  const all = [...state.jobs].sort((a, b) => b.id - a.id);
+  const jobs = all.filter((j) => j.mode === state.mode);
   const seen = new Set();
   for (const j of jobs) {
     seen.add(j.id);
@@ -385,13 +451,19 @@ function renderJobs() {
     if (list.children[i] !== li) list.insertBefore(li, list.children[i] || null);
   });
 
-  const finished = jobs.filter((j) => ['done', 'error', 'cancelled'].includes(j.status)).length;
-  const active = jobs.length - finished;
+  const isActive = (j) => !['done', 'error', 'cancelled'].includes(j.status);
+  const finished = jobs.filter((j) => !isActive(j)).length;
   $('#empty').hidden = jobs.length > 0;
   $('#clear-btn').hidden = finished === 0;
   $('#count').textContent = jobs.length ? String(jobs.length) : '';
+  // Each tab shows how many of its downloads are still running
+  for (const badge of document.querySelectorAll('.tab-count')) {
+    const n = all.filter((j) => j.mode === badge.dataset.count && isActive(j)).length;
+    badge.textContent = n ? String(n) : '';
+  }
+  const active = all.filter(isActive).length;
   document.body.classList.toggle('busy', active > 0);
-  document.title = active ? `(${active}) yt-dlp Audio` : 'yt-dlp Audio';
+  document.title = active ? `(${active}) ${APP_NAME}` : APP_NAME;
 }
 
 async function reveal(path) {
@@ -453,19 +525,25 @@ async function browse(path) {
   list.scrollTop = 0;
 }
 
+let pickerKey = 'outdir';
+
 function initFolderPicker() {
   const dialog = $('#folder-dialog');
-  $('#folder-btn').addEventListener('click', () => {
-    browse(state.settings.outdir);
-    dialog.showModal();
-  });
+  for (const btn of document.querySelectorAll('.folder-btn[data-key]')) {
+    btn.addEventListener('click', () => {
+      pickerKey = btn.dataset.key;
+      $('#folder-title').textContent = pickerKey === 'video_outdir' ? 'Where should videos go?' : 'Where should audio go?';
+      browse(state.settings[pickerKey]);
+      dialog.showModal();
+    });
+  }
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog || e.target.closest('[data-close]')) dialog.close();
   });
   $('#dir-up').addEventListener('click', () => { if (browseParent != null) browse(browseParent); });
   $('#dir-select').addEventListener('click', async () => {
     dialog.close();
-    await saveSettings({ outdir: browsePath });
+    await saveSettings({ [pickerKey]: browsePath });
     toast(`Saving to ${basename(browsePath)}`);
   });
 }
@@ -508,7 +586,8 @@ initTheme();
 initSettings();
 initComposer();
 initFolderPicker();
-$('#clear-btn').addEventListener('click', () => api('POST', '/jobs/clear').then(refresh));
+initTabs();
+$('#clear-btn').addEventListener('click', () => api('POST', '/jobs/clear', { mode: state.mode }).then(refresh));
 refresh().then(() => {
   schedulePoll();
   $('#url').focus();

@@ -1,4 +1,4 @@
-"""A simple graphical app for downloading audio with yt-dlp"""
+"""YouTubevert by StormEf4: a simple app for downloading audio and video from YouTube with yt-dlp"""
 
 import argparse
 import contextlib
@@ -41,7 +41,7 @@ def _open_window(httpd, url):
         return False
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        webview.create_window('yt-dlp Audio', url, width=980, height=800, min_size=(420, 560),
+        webview.create_window('YouTubevert by StormEf4', url, width=980, height=800, min_size=(420, 560),
                               background_color='#0f0c15')
         webview.start(gui='edgechromium' if os.name == 'nt' else None)
     except Exception:
@@ -51,7 +51,7 @@ def _open_window(httpd, url):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog='yt-dlp-gui', description='Download audio from YouTube')
+    parser = argparse.ArgumentParser(prog='yt-dlp-gui', description='YouTubevert by StormEf4: download audio and video from YouTube')
     parser.add_argument('--port', type=int, default=0, help='port to listen on (default: any free port)')
     parser.add_argument('--no-browser', action='store_true', help='do not open the app automatically')
     parser.add_argument('--browser', action='store_true',
@@ -73,7 +73,7 @@ def main(argv=None):
         httpd.server_close()
         return
 
-    _say(f'yt-dlp Audio is running at {url}')
+    _say(f'YouTubevert is running at {url}')
     _say('Close the browser tab or press Ctrl+C to quit')
     if not args.no_browser:
         webbrowser.open(url)

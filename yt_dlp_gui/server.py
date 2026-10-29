@@ -16,7 +16,7 @@ import urllib.parse
 from yt_dlp.dependencies import mutagen
 from yt_dlp.version import __version__ as ytdlp_version
 
-from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, BROWSERS, JobManager, format_time, parse_time, probe, ffmpeg_available, youtube_missing
+from .jobs import AUDIO_FORMATS, BLOCKED_BROWSERS, VIDEO_FORMATS, BROWSERS, JobManager, format_time, parse_time, probe, ffmpeg_available, youtube_missing
 from .settings import Settings
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -97,6 +97,9 @@ class App:
             'formats': [
                 {'id': k, 'label': label, 'lossless': lossless, 'cover': cover}
                 for k, (label, lossless, cover) in AUDIO_FORMATS.items()],
+            'video_formats': [
+                {'id': k, 'label': label, 'description': desc, 'cover': cover}
+                for k, (label, desc, cover, _) in VIDEO_FORMATS.items()],
             'mutagen': bool(mutagen),
             'busy': self.jobs.busy,
         }
@@ -104,7 +107,7 @@ class App:
 
 class Handler(http.server.BaseHTTPRequestHandler):
     app: App
-    server_version = 'yt-dlp-gui'
+    server_version = 'youtubevert'
 
     def log_message(self, format, *args):
         pass
@@ -232,8 +235,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not urls:
             return self._error('That doesn\'t look like a link. Paste a YouTube link starting with https://')
         if not self.app.ffmpeg:
-            return self._error('FFmpeg was not found. It is needed to convert downloads to audio')
-        options = dict(self.app.settings.values)
+            return self._error('FFmpeg was not found. It is needed to convert downloads')
+        mode = body.get('mode') if body.get('mode') in ('audio', 'video') else 'audio'
+        options = self.app.settings.for_mode(mode)
         for key, label in (('start', 'Start'), ('end', 'End')):
             try:
                 options[key] = parse_time(body.get(key))
@@ -259,7 +263,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._error(str(e))
 
     def _clear(self):
-        self.app.jobs.clear_finished()
+        mode = self._body().get('mode')
+        self.app.jobs.clear_finished(mode if mode in ('audio', 'video') else None)
         self._json({'ok': True})
 
     def _settings(self):
@@ -271,7 +276,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _reveal(self):
         path = str(self._body().get('path') or '')
         # Only reveal what this app created or the chosen output folder
-        allowed = self.app.jobs.known_files() | {self.app.settings.values['outdir']}
+        allowed = self.app.jobs.known_files() | {self.app.settings.values[k] for k in ('outdir', 'video_outdir')}
         if path not in allowed:
             return self._error('Not allowed', 403)
         if not os.path.exists(path):
