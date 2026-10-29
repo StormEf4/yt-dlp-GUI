@@ -1,0 +1,103 @@
+name: Build yt-dlp Audio for Windows
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'yt_dlp_gui/**'
+      - 'bundle/gui_exe.py'
+      - '.github/workflows/gui-exe.yml'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish the .exe as a GitHub release that anyone can download
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: gui-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FFMPEG_URL: https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip
+
+jobs:
+  build:
+    name: Build yt-dlp-Audio.exe
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e ".[default,deno]" pyinstaller pywebview pillow
+
+      - name: Download FFmpeg
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri $env:FFMPEG_URL -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg
+          $exe = Get-ChildItem ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          "FFMPEG_EXE=$($exe.FullName)" >> $env:GITHUB_ENV
+
+      - name: Build the app
+        shell: pwsh
+        run: |
+          python devscripts/make_lazy_extractors.py
+          python bundle/gui_exe.py --ffmpeg "$env:FFMPEG_EXE"
+
+      - name: Check the app starts and finds FFmpeg and Deno
+        shell: pwsh
+        run: |
+          $out = Join-Path $PWD 'selftest.json'
+          Start-Process -FilePath 'dist/yt-dlp-Audio.exe' -ArgumentList '--self-test', "`"$out`"" -Wait
+          Get-Content $out
+          $r = Get-Content $out | ConvertFrom-Json
+          if (-not $r.ffmpeg) { throw 'FFmpeg was not found inside the app' }
+          if ($r.youtube_missing.Count) { throw "Missing inside the app: $($r.youtube_missing -join ', ')" }
+          if (-not $r.mutagen) { throw 'mutagen was not bundled' }
+          '{0:N0} MB' -f ((Get-Item 'dist/yt-dlp-Audio.exe').Length / 1MB)
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: yt-dlp-Audio-windows
+          path: dist/yt-dlp-Audio.exe
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: yt-dlp-Audio-windows
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN: ${{ github.run_number }}
+        run: |
+          gh release create "audio-app-${RUN}" yt-dlp-Audio.exe \
+            --repo "${REPOSITORY}" \
+            --target "${SHA}" \
+            --title "yt-dlp Audio (build ${RUN})" \
+            --notes "**Download \`yt-dlp-Audio.exe\` below and double-click it.** Nothing else to install: FFmpeg and Deno are built in.
+
+          Windows may show \"Windows protected your PC\" the first time, because the app isn't code-signed. Click **More info**, then **Run anyway**."

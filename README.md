@@ -82,12 +82,20 @@ This repository includes **yt-dlp Audio**, a simple app that turns YouTube video
 * **YouTube sign-in**: if YouTube asks you to confirm you're not a bot, pick the browser you're logged in to YouTube with and try again
 * Light and dark themes, and it remembers your choices
 
-**Start it** by double-clicking `yt-dlp-gui.cmd` (Windows) or running `./yt-dlp-gui.sh` (macOS/Linux). You can also run `python3 -m yt_dlp_gui` from this folder, or `yt-dlp-gui` if you installed it with pip. It opens in your web browser and quits when you close the tab. To get its own window instead, run `pip install pywebview` first.
+### Windows: just download and double-click
 
-**You need:**
-* [Python](https://www.python.org/downloads/) 3.11 or newer
-* [FFmpeg](https://ffmpeg.org/download.html), which converts downloads to audio
-* For YouTube: [Deno](https://deno.com) and the `yt-dlp-ejs` package. Run `pip install deno yt-dlp-ejs`. Also run `pip install mutagen` if you want cover art in Opus or FLAC files
+1. Go to this repository's **Releases** page and download **`yt-dlp-Audio.exe`**
+2. Double-click it. That's it: FFmpeg and everything else YouTube needs are built in
+
+The first time, Windows may say *"Windows protected your PC"* because the app isn't code-signed. Click **More info**, then **Run anyway**. The app takes a few seconds to open, and your songs go to your **Music** folder (you can change this in the app).
+
+### Building the .exe
+
+The `.exe` is built by the [Build yt-dlp Audio for Windows](.github/workflows/gui-exe.yml) workflow on every push that changes the app. To publish it for everyone, open the **Actions** tab, choose **Build yt-dlp Audio for Windows**, click **Run workflow**, tick **Publish the .exe as a GitHub release**, and run it. The build script is `bundle/gui_exe.py`.
+
+### Running from source (macOS, Linux, developers)
+
+Run `./yt-dlp-gui.sh` (or `python3 -m yt_dlp_gui`). It opens in your web browser and quits when you close the tab; `pip install pywebview` gives it its own window. You need Python 3.11+, [FFmpeg](https://ffmpeg.org/download.html), and for YouTube `pip install deno yt-dlp-ejs` (plus `pip install mutagen` for cover art in Opus/FLAC files).
 
 The app only listens on your own computer (`127.0.0.1`), so other devices on your network can't use it.
 <!-- MANPAGE: END EXCLUDED SECTION -->
