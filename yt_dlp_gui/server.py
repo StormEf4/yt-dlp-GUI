@@ -212,7 +212,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         })
 
     def _static(self, name):
-        if not re.fullmatch(r'[\w-]+\.(css|js|svg)', name):
+        if not re.fullmatch(r'[\w-]+\.(css|js|svg|png)', name):
             return self._error('Not found', 404)
         try:
             with open(os.path.join(STATIC_DIR, name), 'rb') as f:

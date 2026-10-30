@@ -30,27 +30,11 @@ def find_deno():
 
 
 def make_icon(path):
-    """Draw the app icon (gradient tile with equalizer bars), matching yt_dlp_gui/static/icon.svg"""
-    from PIL import Image, ImageDraw
+    """Make the Windows app icon from the app's logo"""
+    from PIL import Image
 
-    size = 256
-    start, mid, end = (0xff, 0x4f, 0x7b), (0xff, 0x7a, 0x5c), (0xff, 0xa9, 0x4d)
-
-    def colour(t):
-        a, b, t = (start, mid, t / 0.55) if t < 0.55 else (mid, end, (t - 0.55) / 0.45)
-        return tuple(round(x + (y - x) * t) for x, y in zip(a, b, strict=True))
-
-    gradient = Image.new('RGB', (size, size))
-    gradient.putdata([colour((x + y) / (2 * (size - 1))) for y in range(size) for x in range(size)])
-    mask = Image.new('L', (size, size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=64, fill=255)
-    icon = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    icon.paste(gradient, (0, 0), mask)
-
-    draw = ImageDraw.Draw(icon)
-    for x, y, h in ((64, 108, 56), (100, 68, 136), (136, 92, 88), (172, 116, 44)):
-        draw.rounded_rectangle((x, y, x + 24, y + h), radius=12, fill='white')
-    icon.save(path, sizes=[(s, s) for s in (16, 20, 24, 32, 40, 48, 64, 128, 256)])
+    Image.open(os.path.join('yt_dlp_gui', 'static', 'logo.png')).convert('RGBA').save(
+        path, sizes=[(s, s) for s in (16, 20, 24, 32, 40, 48, 64, 128, 256)])
 
 
 def main():
